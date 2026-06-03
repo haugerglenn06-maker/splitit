@@ -33,7 +33,17 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; overscroll-behavior: none; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            overscroll-behavior: none; 
+            touch-action: pan-y; 
+            user-select: none; 
+            -webkit-user-select: none; 
+            -webkit-touch-callout: none;
+            /* Fix för korrekt höjd på mobila enheter */
+            height: 100dvh;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
         #orientation-warning { display: none; }
         @media screen and (orientation: landscape) and (max-width: 900px) {
             #app { display: none !important; }
@@ -41,7 +51,7 @@
         }
     </style>
 </head>
-<body class="bg-emerald-950 text-emerald-950 h-screen w-screen overflow-hidden selection:bg-emerald-200 flex items-center justify-center">
+<body class="bg-emerald-950 text-emerald-950 h-[100dvh] w-screen overflow-hidden selection:bg-emerald-200 flex items-center justify-center">
 
     <div id="orientation-warning" class="fixed inset-0 bg-white z-50 flex-col items-center justify-center p-6 text-center h-full w-full">
         <p class="text-xl font-semibold">Vänligen rotera tillbaka enheten till porträttläge.</p>
@@ -104,6 +114,7 @@
                         </div>
                     </main>
 
+                    <!-- Dialog: Skapa utgift -->
                     <div v-if="showDialog" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 ease-out flex flex-col" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
                             <button @click="showDialog = false" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
@@ -114,6 +125,7 @@
                         </div>
                     </div>
 
+                    <!-- Dialog: Inställningar -->
                     <div v-if="showSettings" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 ease-out flex flex-col" :class="showSettings ? 'translate-x-0' : 'translate-x-full'">
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
                             <button @click="showSettings = false" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
