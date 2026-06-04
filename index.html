@@ -11,6 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <script>
+      // Designsystem: Centraliserad konfiguration för Tailwind
       tailwind.config = {
         theme: {
           extend: {
@@ -381,9 +382,8 @@
                                 
                                 <div class="flex flex-col">
                                     <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare</label>
-                                    <div class="flex gap-2 mb-3">
-                                        <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn..." class="flex-1 p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
-                                        <button @click="addParticipant" class="bg-emerald-200 px-6 rounded-xl font-bold text-emerald-900 active:scale-95 transition-all text-xl">+</button>
+                                    <div class="mb-3">
+                                        <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn..." class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                     </div>
                                     <div class="flex flex-wrap gap-2">
                                         <span v-for="(person, index) in participants" :key="index" class="bg-emerald-100 text-emerald-900 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-sm border border-emerald-200">
