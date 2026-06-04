@@ -1,86 +1,283 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sv">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Split Expenses App</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <script>
-        // Designsystem: Centraliserad konfiguration för att säkerställa visuell enhetlighet
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        moneygreen: { DEFAULT: '#118C4F' },
-                        appbg: '#f0fdf9'
-                    },
-                    borderRadius: {
-                        '2xl': '1.5rem',
-                    },
-                    boxShadow: {
-                        'float': '0 10px 25px -5px rgba(17, 140, 79, 0.2)',
-                    }
-                }
-            }
-        }
+      // Designsystem: Centraliserad konfiguration för Tailwind
+      // Säkerställer visuell enhetlighet genom anpassade färgkoder och styling-tokens
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              moneygreen: { DEFAULT: '#118C4F' },
+              appbg: '#f0fdf9',
+            },
+            borderRadius: {
+              '2xl': '1.5rem',
+            },
+            boxShadow: {
+              float: '0 10px 25px -5px rgba(17, 140, 79, 0.2)',
+            },
+          },
+        },
+      };
     </script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
     <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            overscroll-behavior: none; 
-            touch-action: pan-y; 
-            user-select: none; 
-            -webkit-user-select: none; 
-            -webkit-touch-callout: none;
-            /* Säkerställer korrekt höjdhantering för mobila enheter */
-            height: 100dvh;
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        #orientation-warning { display: none; }
-        /* Tvingar stående läge på mobila enheter */
-        @media screen and (orientation: landscape) and (max-width: 900px) {
-            #app { display: none !important; }
-            #orientation-warning { display: flex; }
-        }
-    </style>
-</head>
-<body class="bg-emerald-950 text-emerald-950 h-[100dvh] w-screen overflow-hidden selection:bg-emerald-200 flex items-center justify-center">
+      /* Grundläggande reset och anpassningar för att efterlikna en native mobilapp */
+      body {
+        font-family: 'Inter', sans-serif;
+        overscroll-behavior: none; /* Förhindrar pull-to-refresh "gummibandseffekt" */
+        touch-action: pan-y;
+        user-select: none; /* Förhindrar textmarkering vid snabba tryck */
+        -webkit-user-select: none;
+        -webkit-touch-callout: none; /* Förhindrar popup-menyer vid långtryck på iOS */
 
-    <div id="orientation-warning" class="fixed inset-0 bg-white z-50 flex-col items-center justify-center p-6 text-center h-full w-full">
-        <p class="text-xl font-semibold">Vänligen rotera tillbaka enheten till porträttläge.</p>
+        /* 100dvh (Dynamic Viewport Height) hanterar mobila webbläsares adressfält dynamiskt */
+        height: 100dvh;
+        /* Padding bottom säkerställer att innehåll inte hamnar bakom enheters hem-indikatorer */
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      #orientation-warning {
+        display: none;
+      }
+
+      /* Tvingar stående läge (porträtt) på mobila enheter via CSS-media queries */
+      @media screen and (orientation: landscape) and (max-width: 900px) {
+        #app {
+          display: none !important;
+        }
+        #orientation-warning {
+          display: flex;
+        }
+      }
+    </style>
+  </head>
+
+  <body
+    class="bg-emerald-950 text-emerald-950 h-[100dvh] w-screen overflow-hidden selection:bg-emerald-200 flex items-center justify-center"
+  >
+    <div
+      id="orientation-warning"
+      class="fixed inset-0 bg-white z-50 flex-col items-center justify-center p-6 text-center h-full w-full"
+    >
+      <p class="text-xl font-semibold">Vänligen rotera tillbaka enheten till porträttläge.</p>
     </div>
 
     <div id="app" class="h-full w-full flex items-center justify-center"></div>
 
     <script>
-        const { createApp, ref, onMounted } = Vue;
+      // Uppdaterad med 'computed' för att kunna räkna ut Swish-listan dynamiskt
+      const { createApp, ref, onMounted, computed } = Vue;
 
-        const AppShell = {
-            name: 'AppShell',
-            setup() {
-                // Reaktiva tillstånd för navigering och dialoger
-                const showDialog = ref(false);
-                const showSettings = ref(false);
-                const activeView = ref('home');
+      const AppShell = {
+        name: 'AppShell',
+        setup() {
+          /* --- REAKTIVT TILLSTÅND (STATE) --- */
+          const showDialog = ref(false);
+          const showSettings = ref(false);
+          const activeView = ref('home');
 
-                onMounted(() => {
-                    // Försök låsa skärmorientering till porträttläge vid initialisering
-                    if (screen.orientation && screen.orientation.lock) {
-                        try { screen.orientation.lock('portrait').catch(() => {}); } catch (e) {}
-                    }
-                });
-                return { showDialog, showSettings, activeView };
-            },
-            template: `
+          // Data för formuläret
+          const description = ref('');
+          const amount = ref('');
+          const newPerson = ref('');
+          const participants = ref([]);
+          const payer = ref('');
+          const expenseType = ref('household'); // 'household' eller 'personal'
+
+          // Huvudlista för alla sparade utgifter
+          const expenses = ref([]);
+
+          // Array för att lagra arkiverade sessioner i historiken
+          const history = ref([]);
+
+          /* --- METODER (LOGIK) --- */
+          const formatDescription = () => {
+            let text = description.value.trim();
+            if (text !== '') {
+              description.value = text.charAt(0).toUpperCase() + text.slice(1);
+            }
+          };
+
+          const addParticipant = () => {
+            let name = newPerson.value.trim();
+            if (name !== '') {
+              name = name.charAt(0).toUpperCase() + name.slice(1);
+              // Förhindra dubbletter
+              if (!participants.value.includes(name)) {
+                participants.value.push(name);
+              }
+              newPerson.value = '';
+            }
+          };
+
+          const removeParticipant = (index) => {
+            // Om personen vi tar bort är vald som betalare, rensa betalare-fältet
+            if (participants.value[index] === payer.value) {
+              payer.value = '';
+            }
+            participants.value.splice(index, 1);
+          };
+
+          const saveExpense = () => {
+            // Validering: Kräver beskrivning, belopp, minst en deltagare och vald betalare
+            if (description.value.trim() && amount.value && participants.value.length > 0 && payer.value) {
+              expenses.value.push({
+                id: Date.now(),
+                description: description.value.trim(),
+                amount: parseFloat(amount.value),
+                payer: payer.value,
+                participants: [...participants.value], // Skapar en kopia av arrayen
+                type: expenseType.value,
+              });
+
+              // Rensa formuläret efter sparning, men behåll deltagarna för nästa kvitto
+              description.value = '';
+              amount.value = '';
+              payer.value = '';
+              showDialog.value = false;
+            } else {
+              alert('Vänligen fyll i belopp, beskrivning, välj vem som betalade och se till att det finns deltagare.');
+            }
+          };
+
+          // Paketerar aktuella utgifter och sparar i historiken
+          const archiveExpenses = () => {
+            if (expenses.value.length === 0) return;
+
+            if (confirm('Vill du arkivera dessa utgifter till historiken?')) {
+              history.value.push({
+                id: Date.now(),
+                date: new Date().toLocaleDateString('sv-SE'), // Ger formatet YYYY-MM-DD
+                items: [...expenses.value],
+                totalAmount: expenses.value.reduce((sum, exp) => sum + exp.amount, 0),
+              });
+              expenses.value = [];
+              participants.value = [];
+            }
+          };
+
+          // Raderar utgifterna helt utan att spara
+          const deleteExpenses = () => {
+            if (expenses.value.length === 0) return;
+
+            if (confirm('Är du säker på att du vill radera alla aktuella utgifter helt? (Detta sparas ej)')) {
+              expenses.value = [];
+              participants.value = [];
+            }
+          };
+
+          /* --- BERÄKNING AV SWISH-LISTA --- */
+          const settlements = computed(() => {
+            if (expenses.value.length === 0) return [];
+
+            // 1. Summera nettosaldot för varje person
+            const balances = {};
+
+            // Initiera alla personer i systemet till 0
+            expenses.value.forEach((exp) => {
+              balances[exp.payer] = balances[exp.payer] || 0;
+              exp.participants.forEach((p) => {
+                balances[p] = balances[p] || 0;
+              });
+            });
+
+            // Beräkna vem som har plus och vem som har minus
+            expenses.value.forEach((exp) => {
+              const splitAmount = exp.amount / exp.participants.length;
+              balances[exp.payer] += exp.amount; // Betalaren får tillbaka totalbeloppet
+
+              exp.participants.forEach((p) => {
+                balances[p] -= splitAmount; // Varje deltagare belastas med sin andel
+              });
+            });
+
+            // 2. Matcha de som är skyldiga (debtors) med de som ska ha pengar (creditors)
+            const debtors = [];
+            const creditors = [];
+
+            for (const [person, balance] of Object.entries(balances)) {
+              if (balance < -0.01) debtors.push({ name: person, amount: Math.abs(balance) });
+              else if (balance > 0.01) creditors.push({ name: person, amount: balance });
+            }
+
+            const transactions = [];
+            let i = 0;
+            let j = 0;
+
+            while (i < debtors.length && j < creditors.length) {
+              const debtor = debtors[i];
+              const creditor = creditors[j];
+
+              const amount = Math.min(debtor.amount, creditor.amount);
+
+              transactions.push({
+                from: debtor.name,
+                to: creditor.name,
+                amount: amount,
+              });
+
+              debtor.amount -= amount;
+              creditor.amount -= amount;
+
+              if (debtor.amount < 0.01) i++;
+              if (creditor.amount < 0.01) j++;
+            }
+
+            return transactions;
+          });
+
+          /* --- LIFECYCLE HOOKS --- */
+          onMounted(() => {
+            if (screen.orientation && screen.orientation.lock) {
+              try {
+                screen.orientation.lock('portrait').catch(() => {});
+              } catch (e) {}
+            }
+          });
+
+          return {
+            showDialog,
+            showSettings,
+            activeView,
+            description,
+            formatDescription,
+            amount,
+            newPerson,
+            participants,
+            addParticipant,
+            removeParticipant,
+            payer,
+            expenseType,
+            expenses,
+            history,
+            saveExpense,
+            archiveExpenses,
+            deleteExpenses,
+            settlements,
+          };
+        },
+
+        template: `
                 <div id="app-container" class="flex flex-col bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-950 relative overflow-hidden w-full h-full sm:w-[375px] sm:h-[812px] sm:max-h-[95vh] sm:rounded-[3rem] sm:border-[8px] sm:border-emerald-950 sm:shadow-2xl sm:shadow-emerald-900/50">
                     
                     <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen/90 backdrop-blur-xl border-b border-moneygreen/30 z-40 shrink-0 shadow-sm flex items-center justify-start gap-3">
@@ -92,6 +289,7 @@
                     </header>
 
                     <main class="flex-1 overflow-y-auto relative z-10 p-6 flex flex-col">
+                        
                         <div v-if="activeView === 'home'" class="flex flex-col items-center justify-center h-full gap-8">
                             <div class="w-full max-w-sm flex flex-col gap-8">
                                 <div class="space-y-3 text-left">
@@ -107,38 +305,141 @@
                             </div>
                         </div>
 
-                        <div v-if="activeView === 'expenses'" class="h-full">
-                            <h2 class="text-2xl font-bold text-emerald-950 mb-6">Mina utgifter</h2>
-                            <div class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 text-emerald-800 italic">Här visas dina pågående delningar...</div>
+                        <div v-if="activeView === 'expenses'" class="h-full flex flex-col">
+                            <h2 class="text-2xl font-bold text-emerald-950 mb-6 shrink-0">Vem ska swisha?</h2>
+                            
+                            <div class="flex-1 overflow-y-auto pr-1 pb-4">
+                                <div v-if="expenses.length === 0" class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 text-emerald-800 italic text-center">
+                                    Inga utgifter inlagda. Skapa en utgift för att se aktuell ställning.
+                                </div>
+                                
+                                <div v-else class="space-y-3">
+                                    <div v-for="(txn, index) in settlements" :key="'txn-'+index" class="p-5 bg-white rounded-2xl shadow-sm border border-emerald-100 flex items-center justify-between">
+                                        <div class="flex flex-col">
+                                            <span class="text-sm text-emerald-600 font-semibold">{{ txn.from }} swishar</span>
+                                            <span class="text-xl font-bold text-emerald-950">{{ txn.to }}</span>
+                                        </div>
+                                        <div class="text-xl font-black text-moneygreen">
+                                            {{ txn.amount.toFixed(2) }} kr
+                                        </div>
+                                    </div>
+                                    
+                                    <div v-if="settlements.length === 0 && expenses.length > 0" class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 text-emerald-800 font-bold text-center">
+                                        Alla ligger lika! Ingen behöver swisha.
+                                    </div>
+
+                                    <div class="mt-8 pt-6 border-t border-emerald-200/50">
+                                        <h3 class="text-sm font-bold text-emerald-800 mb-3 uppercase tracking-wider">Inlagda kvitton</h3>
+                                        <div class="space-y-2">
+                                            <div v-for="exp in expenses" :key="exp.id" class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex justify-between items-center text-sm">
+                                                <div>
+                                                    <p class="font-bold text-emerald-950">{{ exp.description }}</p>
+                                                    <p class="text-xs text-emerald-700">Betalat av: {{ exp.payer }}</p>
+                                                </div>
+                                                <p class="font-semibold text-emerald-900">{{ exp.amount.toFixed(2) }} kr</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-6 flex flex-col gap-3">
+                                            <button @click="archiveExpenses" class="w-full bg-amber-100 text-amber-800 hover:bg-amber-200 font-bold py-3.5 px-4 rounded-xl active:scale-95 transition-all text-center flex items-center justify-center gap-2 border border-amber-200 shadow-sm">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="3" rx="2"/><rect width="16" height="10" x="4" y="11" rx="2"/><path d="M10 15h4"/></svg>
+                                                Arkivera & Nollställ
+                                            </button>
+                                            
+                                            <button @click="deleteExpenses" class="w-full bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 px-4 rounded-xl active:scale-95 transition-all text-center border border-red-100">
+                                                Radera allt
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div v-if="activeView === 'history'" class="h-full">
-                            <h2 class="text-2xl font-bold text-emerald-950 mb-6">Historik</h2>
-                            <div class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 text-emerald-800 italic">Här visas avslutade ärenden.</div>
+                        <div v-if="activeView === 'history'" class="h-full flex flex-col">
+                            <h2 class="text-2xl font-bold text-emerald-950 mb-6 shrink-0">Historik</h2>
+                            
+                            <div class="flex-1 overflow-y-auto pr-1 pb-4 space-y-4">
+                                <div v-if="history.length === 0" class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 text-emerald-800 italic text-center">
+                                    Inga arkiverade utgifter ännu.
+                                </div>
+                                
+                                <!-- Historikkort -->
+                                <div v-for="session in history.slice().reverse()" :key="session.id" class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100">
+                                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-emerald-50">
+                                        <span class="font-bold text-xs uppercase tracking-wider text-emerald-600">{{ session.date }}</span>
+                                        <span class="font-black text-moneygreen text-lg">{{ session.totalAmount.toFixed(2) }} kr</span>
+                                    </div>
+                                    <div class="space-y-3">
+                                        <div v-for="exp in session.items" :key="exp.id" class="flex flex-col gap-1 pb-2 border-b border-emerald-50 last:border-0 last:pb-0">
+                                            <div class="flex justify-between items-center">
+                                                <span class="font-bold text-sm text-emerald-950">{{ exp.description }}</span>
+                                                <span class="text-[10px] uppercase font-bold text-emerald-500 bg-emerald-50 px-1.5 rounded">{{ exp.type }}</span>
+                                            </div>
+                                            <div class="flex justify-between text-xs text-emerald-800">
+                                                <span>{{ exp.payer }} betalade</span>
+                                                <span>{{ (exp.amount / exp.participants.length).toFixed(2) }} kr/pers</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </main>
 
-                    <div v-if="showDialog" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 ease-out flex flex-col" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
+                    <div v-if="showDialog" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 flex flex-col" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
+                        
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
                             <button @click="showDialog = false" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
                             <h2 class="text-lg font-bold">Skapa utgift</h2>
                         </header>
-                        <div class="flex flex-col gap-6 p-6">
+                        
+                        <div class="flex flex-col gap-6 p-6 overflow-y-auto">
+                            
+                            <!-- Kategori-toggle -->
+                            <div class="flex bg-emerald-100 p-1 rounded-xl">
+                                <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hushåll</button>
+                                <button @click="expenseType = 'personal'" :class="expenseType === 'personal' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Privat</button>
+                            </div>
+
                             <div class="flex flex-col">
                                 <label class="text-sm font-semibold text-emerald-900 mb-2">Beskrivning</label>
-                                <input type="text" placeholder="Vad gäller utgiften?" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                <input v-model="description" @blur="formatDescription" type="text" placeholder="Vad gäller utgiften?" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                             </div>
+                            
                             <div class="flex flex-col">
                                 <label class="text-sm font-semibold text-emerald-900 mb-2">Belopp (SEK)</label>
-                                <input type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                <input v-model="amount" type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                             </div>
-                            <button class="w-full bg-moneygreen text-white font-bold text-lg py-4 px-6 rounded-2xl shadow-float active:scale-95 transition-all mt-4">
+                            
+                            <div class="flex flex-col">
+                                <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare</label>
+                                <div class="flex gap-2 mb-3">
+                                    <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn..." class="flex-1 p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                    <button @click="addParticipant" class="bg-emerald-200 px-6 rounded-xl font-bold text-emerald-900 active:scale-95 transition-all text-xl">+</button>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <span v-for="(person, index) in participants" :key="index" class="bg-emerald-100 text-emerald-900 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-sm border border-emerald-200">
+                                        {{ person }}
+                                        <button @click="removeParticipant(index)" class="text-emerald-700 hover:text-emerald-900 font-bold active:scale-90">×</button>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div v-if="participants.length > 0" class="flex flex-col">
+                                <label class="text-sm font-semibold text-emerald-900 mb-2">Vem betalade?</label>
+                                <select v-model="payer" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                    <option disabled value="">Välj person...</option>
+                                    <option v-for="(person, index) in participants" :key="index" :value="person">{{ person }}</option>
+                                </select>
+                            </div>
+                            
+                            <button @click="saveExpense" class="w-full bg-moneygreen text-white font-bold text-lg py-4 px-6 rounded-2xl shadow-float active:scale-95 transition-all mt-4 mb-8">
                                 Spara utgift
                             </button>
                         </div>
                     </div>
 
-                    <div v-if="showSettings" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 ease-out flex flex-col" :class="showSettings ? 'translate-x-0' : 'translate-x-full'">
+                    <div v-if="showSettings" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 flex flex-col" :class="showSettings ? 'translate-x-0' : 'translate-x-full'">
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
                             <button @click="showSettings = false" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
                             <h2 class="text-lg font-bold">Inställningar</h2>
@@ -154,11 +455,11 @@
                         <button @click="activeView = 'history'" :class="activeView === 'history' ? 'text-white bg-moneygreen/50' : 'text-white'" class="p-2 transition-colors rounded-full active:scale-95"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-history w-7 h-7"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></button>
                     </nav>
                 </div>
-            `
-        };
+            `,
+      };
 
-        const app = createApp(AppShell);
-        app.mount('#app');
+      const app = createApp(AppShell);
+      app.mount('#app');
     </script>
-</body>
+  </body>
 </html>
