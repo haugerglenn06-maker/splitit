@@ -11,7 +11,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <script>
-      // Designsystem: Centraliserad konfiguration för Tailwind
       tailwind.config = {
         theme: {
           extend: {
@@ -37,7 +36,7 @@
       rel="stylesheet"
     />
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
     <style>
       body {
@@ -82,7 +81,6 @@
       const AppShell = {
         name: 'AppShell',
         setup() {
-          /* --- REAKTIVT TILLSTÅND (STATE) --- */
           const showDialog = ref(false);
           const showSettings = ref(false);
           const activeView = ref('home');
@@ -94,11 +92,9 @@
           const payer = ref('');
           const expenseType = ref('household');
 
-          // Hämta sparad data från localStorage vid start
           const expenses = ref(JSON.parse(localStorage.getItem('splitit_expenses') || '[]'));
           const history = ref(JSON.parse(localStorage.getItem('splitit_history') || '[]'));
 
-          // Spara till localStorage varje gång data ändras
           watch(
             expenses,
             (val) => {
@@ -114,7 +110,6 @@
             { deep: true },
           );
 
-          /* --- METODER (LOGIK) --- */
           const formatDescription = () => {
             let text = description.value.trim();
             if (text !== '') {
@@ -360,55 +355,56 @@
                         </div>
                     </main>
 
-                    <div v-if="showDialog" class="absolute inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 flex flex-col" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
+                    <div v-if="showDialog" class="fixed inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
                         
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
                             <button @click="showDialog = false" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
                             <h2 class="text-lg font-bold">Skapa utgift</h2>
                         </header>
                         
-                        <div class="flex flex-col gap-6 p-6 overflow-y-auto">
-                            
-                            <div class="flex bg-emerald-100 p-1 rounded-xl">
-                                <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hushåll</button>
-                                <button @click="expenseType = 'personal'" :class="expenseType === 'personal' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Privat</button>
-                            </div>
+                        <div class="flex-1 p-6 overflow-y-auto">
+                            <div class="flex flex-col gap-6">
+                                <div class="flex bg-emerald-100 p-1 rounded-xl">
+                                    <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hus</button>
+                                    <button @click="expenseType = 'personal'" :class="expenseType === 'personal' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Privat</button>
+                                </div>
 
-                            <div class="flex flex-col">
-                                <label class="text-sm font-semibold text-emerald-900 mb-2">Beskrivning</label>
-                                <input v-model="description" @blur="formatDescription" type="text" placeholder="Vad gäller utgiften?" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
-                            </div>
-                            
-                            <div class="flex flex-col">
-                                <label class="text-sm font-semibold text-emerald-900 mb-2">Belopp (SEK)</label>
-                                <input v-model="amount" type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
-                            </div>
-                            
-                            <div class="flex flex-col">
-                                <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare</label>
-                                <div class="flex gap-2 mb-3">
-                                    <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn..." class="flex-1 p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
-                                    <button @click="addParticipant" class="bg-emerald-200 px-6 rounded-xl font-bold text-emerald-900 active:scale-95 transition-all text-xl">+</button>
+                                <div class="flex flex-col">
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Beskrivning</label>
+                                    <input v-model="description" @blur="formatDescription" type="text" placeholder="Vad gäller utgiften?" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                 </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <span v-for="(person, index) in participants" :key="index" class="bg-emerald-100 text-emerald-900 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-sm border border-emerald-200">
-                                        {{ person }}
-                                        <button @click="removeParticipant(index)" class="text-emerald-700 hover:text-emerald-900 font-bold active:scale-90">×</button>
-                                    </span>
+                                
+                                <div class="flex flex-col">
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Belopp (SEK)</label>
+                                    <input v-model="amount" type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                 </div>
+                                
+                                <div class="flex flex-col">
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare</label>
+                                    <div class="flex gap-2 mb-3">
+                                        <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn..." class="flex-1 p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                        <button @click="addParticipant" class="bg-emerald-200 px-6 rounded-xl font-bold text-emerald-900 active:scale-95 transition-all text-xl">+</button>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <span v-for="(person, index) in participants" :key="index" class="bg-emerald-100 text-emerald-900 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-sm border border-emerald-200">
+                                            {{ person }}
+                                            <button @click="removeParticipant(index)" class="text-emerald-700 hover:text-emerald-900 font-bold active:scale-90">×</button>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div v-if="participants.length > 0" class="flex flex-col">
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Vem betalade?</label>
+                                    <select v-model="payer" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                        <option disabled value="">Välj person...</option>
+                                        <option v-for="(person, index) in participants" :key="index" :value="person">{{ person }}</option>
+                                    </select>
+                                </div>
+                                
+                                <button @click="saveExpense" class="w-full bg-moneygreen text-white font-bold text-lg py-4 px-6 rounded-2xl shadow-float active:scale-95 transition-all mt-4 mb-8">
+                                    Spara utgift
+                                </button>
                             </div>
-                            
-                            <div v-if="participants.length > 0" class="flex flex-col">
-                                <label class="text-sm font-semibold text-emerald-900 mb-2">Vem betalade?</label>
-                                <select v-model="payer" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
-                                    <option disabled value="">Välj person...</option>
-                                    <option v-for="(person, index) in participants" :key="index" :value="person">{{ person }}</option>
-                                </select>
-                            </div>
-                            
-                            <button @click="saveExpense" class="w-full bg-moneygreen text-white font-bold text-lg py-4 px-6 rounded-2xl shadow-float active:scale-95 transition-all mt-4 mb-8">
-                                Spara utgift
-                            </button>
                         </div>
                     </div>
 
