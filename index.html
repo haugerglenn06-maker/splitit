@@ -12,7 +12,6 @@
 
     <script>
       // Designsystem: Centraliserad konfiguration för Tailwind
-      // Säkerställer visuell enhetlighet genom anpassade färgkoder och styling-tokens
       tailwind.config = {
         theme: {
           extend: {
@@ -38,29 +37,22 @@
       rel="stylesheet"
     />
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
     <style>
-      /* Grundläggande reset och anpassningar för att efterlikna en native mobilapp */
       body {
         font-family: 'Inter', sans-serif;
-        overscroll-behavior: none; /* Förhindrar pull-to-refresh "gummibandseffekt" */
+        overscroll-behavior: none;
         touch-action: pan-y;
-        user-select: none; /* Förhindrar textmarkering vid snabba tryck */
+        user-select: none;
         -webkit-user-select: none;
-        -webkit-touch-callout: none; /* Förhindrar popup-menyer vid långtryck på iOS */
-
-        /* 100dvh (Dynamic Viewport Height) hanterar mobila webbläsares adressfält dynamiskt */
+        -webkit-touch-callout: none;
         height: 100dvh;
-        /* Padding bottom säkerställer att innehåll inte hamnar bakom enheters hem-indikatorer */
         padding-bottom: env(safe-area-inset-bottom);
       }
-
       #orientation-warning {
         display: none;
       }
-
-      /* Tvingar stående läge (porträtt) på mobila enheter via CSS-media queries */
       @media screen and (orientation: landscape) and (max-width: 900px) {
         #app {
           display: none !important;
@@ -85,8 +77,7 @@
     <div id="app" class="h-full w-full flex items-center justify-center"></div>
 
     <script>
-      // Uppdaterad med 'computed' för att kunna räkna ut Swish-listan dynamiskt
-      const { createApp, ref, onMounted, computed } = Vue;
+      const { createApp, ref, onMounted, computed, watch } = Vue;
 
       const AppShell = {
         name: 'AppShell',
@@ -96,19 +87,32 @@
           const showSettings = ref(false);
           const activeView = ref('home');
 
-          // Data för formuläret
           const description = ref('');
           const amount = ref('');
           const newPerson = ref('');
           const participants = ref([]);
           const payer = ref('');
-          const expenseType = ref('household'); // 'household' eller 'personal'
+          const expenseType = ref('household');
 
-          // Huvudlista för alla sparade utgifter
-          const expenses = ref([]);
+          // Hämta sparad data från localStorage vid start
+          const expenses = ref(JSON.parse(localStorage.getItem('splitit_expenses') || '[]'));
+          const history = ref(JSON.parse(localStorage.getItem('splitit_history') || '[]'));
 
-          // Array för att lagra arkiverade sessioner i historiken
-          const history = ref([]);
+          // Spara till localStorage varje gång data ändras
+          watch(
+            expenses,
+            (val) => {
+              localStorage.setItem('splitit_expenses', JSON.stringify(val));
+            },
+            { deep: true },
+          );
+          watch(
+            history,
+            (val) => {
+              localStorage.setItem('splitit_history', JSON.stringify(val));
+            },
+            { deep: true },
+          );
 
           /* --- METODER (LOGIK) --- */
           const formatDescription = () => {
@@ -122,7 +126,6 @@
             let name = newPerson.value.trim();
             if (name !== '') {
               name = name.charAt(0).toUpperCase() + name.slice(1);
-              // Förhindra dubbletter
               if (!participants.value.includes(name)) {
                 participants.value.push(name);
               }
@@ -131,7 +134,6 @@
           };
 
           const removeParticipant = (index) => {
-            // Om personen vi tar bort är vald som betalare, rensa betalare-fältet
             if (participants.value[index] === payer.value) {
               payer.value = '';
             }
@@ -139,18 +141,16 @@
           };
 
           const saveExpense = () => {
-            // Validering: Kräver beskrivning, belopp, minst en deltagare och vald betalare
             if (description.value.trim() && amount.value && participants.value.length > 0 && payer.value) {
               expenses.value.push({
                 id: Date.now(),
                 description: description.value.trim(),
                 amount: parseFloat(amount.value),
                 payer: payer.value,
-                participants: [...participants.value], // Skapar en kopia av arrayen
+                participants: [...participants.value],
                 type: expenseType.value,
               });
 
-              // Rensa formuläret efter sparning, men behåll deltagarna för nästa kvitto
               description.value = '';
               amount.value = '';
               payer.value = '';
@@ -160,14 +160,13 @@
             }
           };
 
-          // Paketerar aktuella utgifter och sparar i historiken
           const archiveExpenses = () => {
             if (expenses.value.length === 0) return;
 
             if (confirm('Vill du arkivera dessa utgifter till historiken?')) {
               history.value.push({
                 id: Date.now(),
-                date: new Date().toLocaleDateString('sv-SE'), // Ger formatet YYYY-MM-DD
+                date: new Date().toLocaleDateString('sv-SE'),
                 items: [...expenses.value],
                 totalAmount: expenses.value.reduce((sum, exp) => sum + exp.amount, 0),
               });
@@ -176,7 +175,6 @@
             }
           };
 
-          // Raderar utgifterna helt utan att spara
           const deleteExpenses = () => {
             if (expenses.value.length === 0) return;
 
@@ -186,67 +184,44 @@
             }
           };
 
-          /* --- BERÄKNING AV SWISH-LISTA --- */
           const settlements = computed(() => {
             if (expenses.value.length === 0) return [];
-
-            // 1. Summera nettosaldot för varje person
             const balances = {};
-
-            // Initiera alla personer i systemet till 0
             expenses.value.forEach((exp) => {
               balances[exp.payer] = balances[exp.payer] || 0;
               exp.participants.forEach((p) => {
                 balances[p] = balances[p] || 0;
               });
             });
-
-            // Beräkna vem som har plus och vem som har minus
             expenses.value.forEach((exp) => {
               const splitAmount = exp.amount / exp.participants.length;
-              balances[exp.payer] += exp.amount; // Betalaren får tillbaka totalbeloppet
-
+              balances[exp.payer] += exp.amount;
               exp.participants.forEach((p) => {
-                balances[p] -= splitAmount; // Varje deltagare belastas med sin andel
+                balances[p] -= splitAmount;
               });
             });
-
-            // 2. Matcha de som är skyldiga (debtors) med de som ska ha pengar (creditors)
             const debtors = [];
             const creditors = [];
-
             for (const [person, balance] of Object.entries(balances)) {
               if (balance < -0.01) debtors.push({ name: person, amount: Math.abs(balance) });
               else if (balance > 0.01) creditors.push({ name: person, amount: balance });
             }
-
             const transactions = [];
-            let i = 0;
-            let j = 0;
-
+            let i = 0,
+              j = 0;
             while (i < debtors.length && j < creditors.length) {
               const debtor = debtors[i];
               const creditor = creditors[j];
-
               const amount = Math.min(debtor.amount, creditor.amount);
-
-              transactions.push({
-                from: debtor.name,
-                to: creditor.name,
-                amount: amount,
-              });
-
+              transactions.push({ from: debtor.name, to: creditor.name, amount: amount });
               debtor.amount -= amount;
               creditor.amount -= amount;
-
               if (debtor.amount < 0.01) i++;
               if (creditor.amount < 0.01) j++;
             }
-
             return transactions;
           });
 
-          /* --- LIFECYCLE HOOKS --- */
           onMounted(() => {
             if (screen.orientation && screen.orientation.lock) {
               try {
@@ -363,7 +338,6 @@
                                     Inga arkiverade utgifter ännu.
                                 </div>
                                 
-                                <!-- Historikkort -->
                                 <div v-for="session in history.slice().reverse()" :key="session.id" class="p-4 bg-white rounded-2xl shadow-sm border border-emerald-100">
                                     <div class="flex justify-between items-center mb-4 pb-2 border-b border-emerald-50">
                                         <span class="font-bold text-xs uppercase tracking-wider text-emerald-600">{{ session.date }}</span>
@@ -395,9 +369,8 @@
                         
                         <div class="flex flex-col gap-6 p-6 overflow-y-auto">
                             
-                            <!-- Kategori-toggle -->
                             <div class="flex bg-emerald-100 p-1 rounded-xl">
-                                <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hushåll</button>
+                                <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hus</button>
                                 <button @click="expenseType = 'personal'" :class="expenseType === 'personal' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Privat</button>
                             </div>
 
