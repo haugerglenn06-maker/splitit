@@ -62,10 +62,15 @@
         }
       }
       
-      /* Förbättrar utseendet på datumväljaren i iOS/Android */
       input[type="date"]::-webkit-calendar-picker-indicator {
         opacity: 0.5;
       }
+      
+      /* Tar bort standard "rensa"-kryss i sökfält på iOS/Chrome för renare UX */
+      input[type="search"]::-webkit-search-decoration,
+      input[type="search"]::-webkit-search-cancel-button,
+      input[type="search"]::-webkit-search-results-button,
+      input[type="search"]::-webkit-search-results-decoration { display: none; }
     </style>
   </head>
 
@@ -102,7 +107,6 @@
           const payer = ref('');
           const expenseType = ref('household');
           
-          // Hjälpfunktion för att få dagens datum lokalt i YYYY-MM-DD
           const getTodayDate = () => {
             const d = new Date();
             return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -122,7 +126,8 @@
             }
           };
 
-          const addParticipant = () => {
+          const addParticipant = (e) => {
+            if (e) e.preventDefault(); // Förhindrar form-submit/sidomladdning i mobilen
             let name = newPerson.value.trim();
             if (name !== '') {
               name = name.charAt(0).toUpperCase() + name.slice(1);
@@ -154,10 +159,11 @@
             showDialog.value = false;
             setTimeout(() => {
                 dialogStep.value = 1;
-            }, 300); // Vänta på övergångsanimationen
+            }, 300);
           };
 
           const saveExpense = () => {
+            // Kontrollerar endast fälten som hör till Steg 2 vid sparning
             if (amount.value && participants.value.length > 0 && payer.value) {
               expenses.value.push({
                 id: Date.now(),
@@ -370,11 +376,9 @@
                         </div>
                     </main>
 
-                    <!-- TVÅSTEGSDIALOG FÖR ATT SKAPA UTGIFT -->
                     <div v-if="showDialog" class="fixed inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
                         
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
-                            <!-- Pil bakåt/stäng -->
                             <button v-if="dialogStep === 1" @click="closeDialog" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
                             </button>
@@ -386,7 +390,6 @@
                         </header>
                         
                         <div class="flex-1 p-6 overflow-y-auto">
-                            <!-- STEG 1: Kategorisering och information -->
                             <div v-show="dialogStep === 1" class="flex flex-col gap-6">
                                 <div class="flex bg-emerald-100 p-1 rounded-xl">
                                     <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hus</button>
@@ -395,7 +398,7 @@
 
                                 <div class="flex flex-col">
                                     <label class="text-sm font-semibold text-emerald-900 mb-2">Beskrivning</label>
-                                    <input v-model="description" @blur="formatDescription" type="text" placeholder="Vad gäller utgiften?" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                    <input v-model="description" @blur="formatDescription" type="text" inputmode="text" placeholder="Vad gäller utgiften?" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                 </div>
                                 
                                 <div class="flex flex-col">
@@ -408,12 +411,11 @@
                                 </button>
                             </div>
 
-                            <!-- STEG 2: Belopp och deltagare -->
                             <div v-show="dialogStep === 2" class="flex flex-col gap-6">
                                 <div class="flex flex-col">
                                     <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare för split</label>
                                     <div class="mb-3">
-                                        <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn (tryck Enter/Klar)..." class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                        <input v-model="newPerson" @keydown.enter="addParticipant" type="search" inputmode="text" enterkeyhint="done" placeholder="Namn (tryck på Klar/Enter)..." class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                     </div>
                                     <div class="flex flex-wrap gap-2">
                                         <span v-for="(person, index) in participants" :key="index" class="bg-emerald-100 text-emerald-900 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-sm border border-emerald-200">
@@ -425,7 +427,7 @@
 
                                 <div class="flex flex-col">
                                     <label class="text-sm font-semibold text-emerald-900 mb-2">Belopp (SEK)</label>
-                                    <input v-model="amount" type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                    <input v-model="amount" type="text" inputmode="decimal" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                 </div>
                                 
                                 <div v-if="participants.length > 0" class="flex flex-col">
