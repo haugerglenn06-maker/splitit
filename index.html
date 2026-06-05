@@ -61,6 +61,11 @@
           display: flex;
         }
       }
+      
+      /* Förbättrar utseendet på datumväljaren i iOS/Android */
+      input[type="date"]::-webkit-calendar-picker-indicator {
+        opacity: 0.5;
+      }
     </style>
   </head>
 
@@ -86,30 +91,29 @@
           const showSettings = ref(false);
           const activeView = ref('home');
 
+          // Tillstånd för tvåstegsformuläret
+          const dialogStep = ref(1);
+
+          // Data för formuläret
           const description = ref('');
           const amount = ref('');
           const newPerson = ref('');
           const participants = ref([]);
           const payer = ref('');
           const expenseType = ref('household');
+          
+          // Hjälpfunktion för att få dagens datum lokalt i YYYY-MM-DD
+          const getTodayDate = () => {
+            const d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          };
+          const expenseDate = ref(getTodayDate());
 
           const expenses = ref(JSON.parse(localStorage.getItem('splitit_expenses') || '[]'));
           const history = ref(JSON.parse(localStorage.getItem('splitit_history') || '[]'));
 
-          watch(
-            expenses,
-            (val) => {
-              localStorage.setItem('splitit_expenses', JSON.stringify(val));
-            },
-            { deep: true },
-          );
-          watch(
-            history,
-            (val) => {
-              localStorage.setItem('splitit_history', JSON.stringify(val));
-            },
-            { deep: true },
-          );
+          watch(expenses, (val) => { localStorage.setItem('splitit_expenses', JSON.stringify(val)); }, { deep: true });
+          watch(history, (val) => { localStorage.setItem('splitit_history', JSON.stringify(val)); }, { deep: true });
 
           const formatDescription = () => {
             let text = description.value.trim();
@@ -136,23 +140,42 @@
             participants.value.splice(index, 1);
           };
 
+          // Validering för steg 1
+          const nextStep = () => {
+            if (description.value.trim() && expenseDate.value) {
+                dialogStep.value = 2;
+            } else {
+                alert('Vänligen fyll i beskrivning och datum.');
+            }
+          };
+
+          // Återställ dialogen när den stängs
+          const closeDialog = () => {
+            showDialog.value = false;
+            setTimeout(() => {
+                dialogStep.value = 1;
+            }, 300); // Vänta på övergångsanimationen
+          };
+
           const saveExpense = () => {
-            if (description.value.trim() && amount.value && participants.value.length > 0 && payer.value) {
+            if (amount.value && participants.value.length > 0 && payer.value) {
               expenses.value.push({
                 id: Date.now(),
+                date: expenseDate.value,
                 description: description.value.trim(),
                 amount: parseFloat(amount.value),
                 payer: payer.value,
                 participants: [...participants.value],
-                type: expenseType.value,
+                type: expenseType.value
               });
 
               description.value = '';
               amount.value = '';
               payer.value = '';
-              showDialog.value = false;
+              expenseDate.value = getTodayDate();
+              closeDialog();
             } else {
-              alert('Vänligen fyll i belopp, beskrivning, välj vem som betalade och se till att det finns deltagare.');
+              alert('Vänligen fyll i belopp, lägg till deltagare och välj vem som betalade.');
             }
           };
 
@@ -180,6 +203,14 @@
             }
           };
 
+          const clearHistory = () => {
+            if (confirm('Är du säker på att du vill radera HELA historiken? Det går inte att ångra.')) {
+              history.value = [];
+              localStorage.removeItem('splitit_history');
+              showSettings.value = false;
+            }
+          };
+
           const settlements = computed(() => {
             if (expenses.value.length === 0) return [];
             const balances = {};
@@ -203,8 +234,7 @@
               else if (balance > 0.01) creditors.push({ name: person, amount: balance });
             }
             const transactions = [];
-            let i = 0,
-              j = 0;
+            let i = 0, j = 0;
             while (i < debtors.length && j < creditors.length) {
               const debtor = debtors[i];
               const creditor = creditors[j];
@@ -220,31 +250,15 @@
 
           onMounted(() => {
             if (screen.orientation && screen.orientation.lock) {
-              try {
-                screen.orientation.lock('portrait').catch(() => {});
-              } catch (e) {}
+              try { screen.orientation.lock('portrait').catch(() => {}); } catch (e) {}
             }
           });
 
           return {
-            showDialog,
-            showSettings,
-            activeView,
-            description,
-            formatDescription,
-            amount,
-            newPerson,
-            participants,
-            addParticipant,
-            removeParticipant,
-            payer,
-            expenseType,
-            expenses,
-            history,
-            saveExpense,
-            archiveExpenses,
-            deleteExpenses,
-            settlements,
+            showDialog, showSettings, activeView, description, formatDescription, amount,
+            newPerson, participants, addParticipant, removeParticipant, payer, expenseType,
+            expenseDate, dialogStep, nextStep, closeDialog,
+            expenses, history, saveExpense, archiveExpenses, deleteExpenses, clearHistory, settlements
           };
         },
 
@@ -356,15 +370,24 @@
                         </div>
                     </main>
 
+                    <!-- TVÅSTEGSDIALOG FÖR ATT SKAPA UTGIFT -->
                     <div v-if="showDialog" class="fixed inset-0 z-50 bg-emerald-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden" :class="showDialog ? 'translate-x-0' : 'translate-x-full'">
                         
                         <header class="w-full h-16 sm:h-20 sm:pt-6 px-4 bg-moneygreen flex items-center gap-4 text-white shrink-0">
-                            <button @click="showDialog = false" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
-                            <h2 class="text-lg font-bold">Skapa utgift</h2>
+                            <!-- Pil bakåt/stäng -->
+                            <button v-if="dialogStep === 1" @click="closeDialog" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                            </button>
+                            <button v-else @click="dialogStep = 1" class="p-2 hover:bg-emerald-700 rounded-full transition-colors active:scale-90">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            </button>
+                            
+                            <h2 class="text-lg font-bold">Skapa utgift <span class="text-sm font-medium text-emerald-200 ml-1">({{ dialogStep }}/2)</span></h2>
                         </header>
                         
                         <div class="flex-1 p-6 overflow-y-auto">
-                            <div class="flex flex-col gap-6">
+                            <!-- STEG 1: Kategorisering och information -->
+                            <div v-show="dialogStep === 1" class="flex flex-col gap-6">
                                 <div class="flex bg-emerald-100 p-1 rounded-xl">
                                     <button @click="expenseType = 'household'" :class="expenseType === 'household' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Hus</button>
                                     <button @click="expenseType = 'personal'" :class="expenseType === 'personal' ? 'bg-white shadow' : ''" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all text-emerald-950">Privat</button>
@@ -376,14 +399,21 @@
                                 </div>
                                 
                                 <div class="flex flex-col">
-                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Belopp (SEK)</label>
-                                    <input v-model="amount" type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Datum</label>
+                                    <input v-model="expenseDate" type="date" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white text-emerald-950">
                                 </div>
                                 
+                                <button @click="nextStep" class="w-full bg-moneygreen text-white font-bold text-lg py-4 px-6 rounded-2xl shadow-float active:scale-95 transition-all mt-4 mb-8">
+                                    Nästa
+                                </button>
+                            </div>
+
+                            <!-- STEG 2: Belopp och deltagare -->
+                            <div v-show="dialogStep === 2" class="flex flex-col gap-6">
                                 <div class="flex flex-col">
-                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare</label>
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Deltagare för split</label>
                                     <div class="mb-3">
-                                        <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn..." class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
+                                        <input v-model="newPerson" @keyup.enter="addParticipant" type="text" placeholder="Namn (tryck Enter/Klar)..." class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                     </div>
                                     <div class="flex flex-wrap gap-2">
                                         <span v-for="(person, index) in participants" :key="index" class="bg-emerald-100 text-emerald-900 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-sm border border-emerald-200">
@@ -391,6 +421,11 @@
                                             <button @click="removeParticipant(index)" class="text-emerald-700 hover:text-emerald-900 font-bold active:scale-90">×</button>
                                         </span>
                                     </div>
+                                </div>
+
+                                <div class="flex flex-col">
+                                    <label class="text-sm font-semibold text-emerald-900 mb-2">Belopp (SEK)</label>
+                                    <input v-model="amount" type="number" step="0.01" placeholder="0.00" class="w-full p-4 rounded-xl border-2 border-emerald-100 focus:border-moneygreen outline-none transition-all bg-white">
                                 </div>
                                 
                                 <div v-if="participants.length > 0" class="flex flex-col">
@@ -402,7 +437,7 @@
                                 </div>
                                 
                                 <button @click="saveExpense" class="w-full bg-moneygreen text-white font-bold text-lg py-4 px-6 rounded-2xl shadow-float active:scale-95 transition-all mt-4 mb-8">
-                                    Spara utgift
+                                    Registrera
                                 </button>
                             </div>
                         </div>
@@ -414,7 +449,10 @@
                             <h2 class="text-lg font-bold">Inställningar</h2>
                         </header>
                         <div class="flex-1 p-6">
-                            <p class="text-emerald-800">Här kan du hantera appens inställningar.</p>
+                            <h3 class="font-bold text-emerald-950 mb-4">App-data</h3>
+                            <button @click="clearHistory" class="w-full bg-red-50 text-red-600 font-bold py-3 px-4 rounded-xl border border-red-100 active:scale-95 transition-all">
+                                Radera all historik
+                            </button>
                         </div>
                     </div>
 
