@@ -217,6 +217,17 @@
             }
           };
 
+          // Nya filter för utgifter
+          const pastExpenses = computed(() => {
+            const today = getTodayDate();
+            return expenses.value.filter(exp => exp.date <= today);
+          });
+
+          const futureExpenses = computed(() => {
+            const today = getTodayDate();
+            return expenses.value.filter(exp => exp.date > today);
+          });
+
           const settlements = computed(() => {
             if (expenses.value.length === 0) return [];
             const balances = {};
@@ -264,7 +275,7 @@
             showDialog, showSettings, activeView, description, formatDescription, amount,
             newPerson, participants, addParticipant, removeParticipant, payer, expenseType,
             expenseDate, dialogStep, nextStep, closeDialog,
-            expenses, history, saveExpense, archiveExpenses, deleteExpenses, clearHistory, settlements
+            expenses, pastExpenses, futureExpenses, history, saveExpense, archiveExpenses, deleteExpenses, clearHistory, settlements
           };
         },
 
@@ -320,14 +331,30 @@
                                     </div>
 
                                     <div class="mt-8 pt-6 border-t border-emerald-200/50">
-                                        <h3 class="text-sm font-bold text-emerald-800 mb-3 uppercase tracking-wider">Inlagda kvitton</h3>
-                                        <div class="space-y-2">
-                                            <div v-for="exp in expenses" :key="exp.id" class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex justify-between items-center text-sm">
-                                                <div>
-                                                    <p class="font-bold text-emerald-950">{{ exp.description }}</p>
-                                                    <p class="text-xs text-emerald-700">{{ exp.date }} &bull; Betalat av: {{ exp.payer }}</p>
+                                        
+                                        <div v-if="futureExpenses.length > 0" class="mb-5">
+                                            <h3 class="text-sm font-bold text-emerald-800 mb-3 uppercase tracking-wider">Kommande utgifter</h3>
+                                            <div class="space-y-2">
+                                                <div v-for="exp in futureExpenses" :key="exp.id" class="p-3 bg-white/50 rounded-xl border border-emerald-200 border-dashed flex justify-between items-center text-sm">
+                                                    <div>
+                                                        <p class="font-bold text-emerald-950">{{ exp.description }}</p>
+                                                        <p class="text-xs text-emerald-700">{{ exp.date }} &bull; Ska betalas av: {{ exp.payer }}</p>
+                                                    </div>
+                                                    <p class="font-semibold text-emerald-900">{{ exp.amount.toFixed(2) }} kr</p>
                                                 </div>
-                                                <p class="font-semibold text-emerald-900">{{ exp.amount.toFixed(2) }} kr</p>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="pastExpenses.length > 0" class="mb-5">
+                                            <h3 class="text-sm font-bold text-emerald-800 mb-3 uppercase tracking-wider">Inlagda kvitton</h3>
+                                            <div class="space-y-2">
+                                                <div v-for="exp in pastExpenses" :key="exp.id" class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex justify-between items-center text-sm">
+                                                    <div>
+                                                        <p class="font-bold text-emerald-950">{{ exp.description }}</p>
+                                                        <p class="text-xs text-emerald-700">{{ exp.date }} &bull; Betalat av: {{ exp.payer }}</p>
+                                                    </div>
+                                                    <p class="font-semibold text-emerald-900">{{ exp.amount.toFixed(2) }} kr</p>
+                                                </div>
                                             </div>
                                         </div>
                                         
